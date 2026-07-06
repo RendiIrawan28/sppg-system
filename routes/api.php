@@ -1,12 +1,15 @@
 <?php
 
 use App\Http\Controllers\Api\DashboardReportController;
+use App\Http\Controllers\Api\MobileExecController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/dashboard', [DashboardReportController::class, 'dashboard']);
 
-Route::post('/reports', [DashboardReportController::class, 'store']);
+// Adapter untuk aplikasi lama yang masih memakai action Apps Script.
+Route::post('/exec', [MobileExecController::class, 'handle']);
 
-Route::post('/reports/bulk', [DashboardReportController::class, 'bulkStore']);
-
-Route::delete('/reports/{dashboardReport}', [DashboardReportController::class, 'destroy']);
+// Endpoint utama: bisa menerima format baru berbasis category dan format lama berbasis action.
+Route::post('/reports', [MobileExecController::class, 'handle']);
+Route::post('/reports/bulk', [MobileExecController::class, 'bulk']);
+Route::delete('/reports/{category}/{id}', [MobileExecController::class, 'destroyByCategory']);
