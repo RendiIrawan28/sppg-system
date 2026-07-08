@@ -4,56 +4,79 @@ namespace App\Http\Controllers;
 
 use App\Models\Divisi;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class DivisiController extends Controller
 {
     public function index()
     {
-        $divisis = Divisi::orderBy('nama')->get();
+        $divisis = Divisi::withCount('pegawais')
+            ->orderBy('nama')
+            ->get();
 
         return view('divisi.index', compact('divisis'));
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'nama' => 'required|string|max:100|unique:divisis,nama',
-            'jam_masuk' => ['nullable', 'date_format:H:i'],
-            'jam_keluar' => ['nullable', 'date_format:H:i'],
-        ], [
-            'jam_masuk.date_format' => 'Format Jam Masuk tidak valid. Gunakan HH:MM.',
-            'jam_keluar.date_format' => 'Format Jam Keluar tidak valid. Gunakan HH:MM.',
-        ]);
+        $validated = $this->validateData($request);
 
         Divisi::create($validated);
 
-        return back()->with('success', 'Divisi ' . $validated['nama'] . ' berhasil ditambahkan.');
+        return redirect()
+            ->route('presensi.divisi.index')
+            ->with('success', 'Divisi berhasil ditambahkan.');
     }
 
     public function update(Request $request, Divisi $divisi)
     {
-        $validated = $request->validate([
-            'nama' => 'required|string|max:100|unique:divisis,nama,' . $divisi->id,
-            'jam_masuk' => ['nullable', 'date_format:H:i'],
-            'jam_keluar' => ['nullable', 'date_format:H:i'],
-        ], [
-            'jam_masuk.date_format' => 'Format Jam Masuk tidak valid. Gunakan HH:MM.',
-            'jam_keluar.date_format' => 'Format Jam Keluar tidak valid. Gunakan HH:MM.',
-        ]);
+        $validated = $this->validateData($request, $divisi);
 
         $divisi->update($validated);
 
-        return back()->with('success', 'Data Divisi berhasil diperbarui.');
+        return redirect()
+            ->route('presensi.divisi.index')
+            ->with('success', 'Data divisi berhasil diperbarui.');
     }
 
     public function destroy(Divisi $divisi)
     {
-        try {
-            $divisi->delete();
-
-            return back()->with('success', 'Divisi berhasil dihapus.');
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Gagal menghapus Divisi. Pastikan tidak ada Pegawai yang terhubung.');
+        if ($divisi->pegawais()->exists()) {
+            return redirect()
+                ->route('presensi.divisi.index')
+                ->with('error', 'Divisi tidak bisa dihapus karena masih digunakan oleh pegawai.');
         }
+
+        $divisi->delete();
+
+        return redirect()
+            ->route('presensi.divisi.index')
+            ->with('success', 'Divisi berhasil dihapus.');
+    }
+
+    protected function validateData(Request $request, ?Divisi $divisi = null): array
+    {
+        $ignoreId = $divisi ? $divisi->id : null;
+
+        $validated = $request->validate([
+            'nama' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('divisis', 'nama')->ignore($ignoreId),
+            ],
+            'jam_masuk' => ['nullable', 'date_format:H:i'],
+            'jam_keluar' => ['nullable', 'date_format:H:i'],
+        ]);
+
+        $validated['jam_masuk'] = blank($validated['jam_masuk'] ?? null)
+            ? null
+            : $validated['jam_masuk'];
+
+        $validated['jam_keluar'] = blank($validated['jam_keluar'] ?? null)
+            ? null
+            : $validated['jam_keluar'];
+
+        return $validated;
     }
 }

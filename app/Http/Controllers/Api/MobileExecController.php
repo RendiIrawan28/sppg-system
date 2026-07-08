@@ -35,6 +35,10 @@ class MobileExecController extends Controller
             return $this->getDetailMonitoringDivisi($request);
         }
 
+        if ($action === 'getpemorsianexport') {
+            return $this->getPemorsianExport($request);
+        }
+
         if ($category = $this->categoryFromSaveAction($action)) {
             return $this->saveByCategory($request, $category, true);
         }
@@ -270,6 +274,31 @@ class MobileExecController extends Controller
                 'tanggalBesok' => $tanggalBesok,
                 'totalDistribusiHariIni' => (int) $this->reports->sumByDate('aslap_distribusi', $tanggalHariIni, 'Total'),
                 'totalPlanningBesok' => (int) $this->reports->sumByDate('aslap_planning', $tanggalBesok, 'Total'),
+            ],
+        ]);
+    }
+
+    protected function getPemorsianExport(Request $request)
+    {
+        $tanggal = $this->reports->dateOrToday($request->input('tanggal'));
+
+        $ompreng = array_map(
+            fn(array $row) => $this->reports->toMobileItem('pemorsian_ompreng', $row),
+            $this->reports->list('pemorsian_ompreng', $tanggal)
+        );
+
+        $sisa = array_map(
+            fn(array $row) => $this->reports->toMobileItem('pemorsian_sisa', $row),
+            $this->reports->list('pemorsian_sisa', $tanggal)
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data export pemorsian berhasil dimuat.',
+            'data' => [
+                'tanggal' => $tanggal,
+                'ompreng' => $ompreng,
+                'sisa' => $sisa,
             ],
         ]);
     }

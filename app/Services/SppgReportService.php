@@ -89,6 +89,7 @@ class SppgReportService
                     'Baik' => ['column' => 'baik', 'aliases' => ['Baik', 'baik']],
                     'Sedang' => ['column' => 'sedang', 'aliases' => ['Sedang', 'sedang']],
                     'Rusak' => ['column' => 'rusak', 'aliases' => ['Rusak', 'rusak']],
+                    'Keterangan' => ['column' => 'keterangan', 'aliases' => ['Keterangan', 'keterangan', 'catatan', 'Catatan']],
                     'Nama Petugas' => ['column' => 'nama_petugas', 'aliases' => ['Nama Petugas', 'namaPetugas', 'nama_petugas', 'petugas', 'Petugas']],
                     'Foto URL' => ['column' => 'foto_url', 'aliases' => ['Foto URL', 'fotoUrl', 'foto_url', 'foto']],
                 ],
@@ -140,7 +141,12 @@ class SppgReportService
     {
         return [
             'NO BA' => ['column' => 'no_ba', 'aliases' => ['NO BA', 'No BA', 'noBa', 'no_ba', 'nomorBa', 'noBeritaAcara']],
+            'Nama Pihak Pertama' => ['column' => 'nama_pihak_pertama', 'aliases' => ['Nama Pihak Pertama', 'namaPihakPertama', 'nama_pihak_pertama', 'pihakPertama']],
+            'Jabatan Pihak Pertama' => ['column' => 'jabatan_pihak_pertama', 'aliases' => ['Jabatan Pihak Pertama', 'jabatanPihakPertama', 'jabatan_pihak_pertama']],
+            'Alamat Pihak Pertama' => ['column' => 'alamat_pihak_pertama', 'aliases' => ['Alamat Pihak Pertama', 'alamatPihakPertama', 'alamat_pihak_pertama']],
             'Nama Pihak Kedua' => ['column' => 'nama_pihak_kedua', 'aliases' => ['Nama Pihak Kedua', 'namaPihakKedua', 'nama_pihak_kedua', 'pihakKedua', 'penerima']],
+            'Jabatan Pihak Kedua' => ['column' => 'jabatan_pihak_kedua', 'aliases' => ['Jabatan Pihak Kedua', 'jabatanPihakKedua', 'jabatan_pihak_kedua']],
+            'Alamat Pihak Kedua' => ['column' => 'alamat_pihak_kedua', 'aliases' => ['Alamat Pihak Kedua', 'alamatPihakKedua', 'alamat_pihak_kedua']],
             'Jenis Limbah' => ['column' => 'jenis_limbah', 'aliases' => ['Jenis Limbah', 'jenisLimbah', 'jenis_limbah', 'limbah']],
             'Berat Limbah Kg' => ['column' => 'berat_limbah_kg', 'aliases' => ['Berat Limbah Kg', 'beratLimbahKg', 'berat_limbah_kg', 'berat']],
             'Catatan' => ['column' => 'catatan', 'aliases' => ['Catatan', 'catatan', 'keterangan', 'Keterangan']],
@@ -276,7 +282,7 @@ class SppgReportService
             $column = $field['column'];
             $value = $payload[$canonical] ?? null;
 
-            if ($this->isNumericColumn($column)) {
+            if ($this->isNumericColumn($column, $category)) {
                 $insert[$column] = $this->toNumber($value);
             } else {
                 $insert[$column] = $this->emptyToNull($value);
@@ -310,7 +316,7 @@ class SppgReportService
 
             $value = $payload[$canonical] ?? null;
 
-            if ($this->isNumericColumn($column)) {
+            if ($this->isNumericColumn($column, $category)) {
                 $update[$column] = $this->toNumber($value);
             } else {
                 $update[$column] = $this->emptyToNull($value);
@@ -559,12 +565,12 @@ class SppgReportService
             ],
             'persiapan_limbah', 'pencucian_limbah', 'kebersihan_limbah' => $base + [
                 'noBeritaAcara' => (string) ($row['NO BA'] ?? ''),
-                'namaPihakPertama' => '',
-                'jabatanPihakPertama' => '',
-                'alamatPihakPertama' => '',
+                'namaPihakPertama' => (string) ($row['Nama Pihak Pertama'] ?? ''),
+                'jabatanPihakPertama' => (string) ($row['Jabatan Pihak Pertama'] ?? ''),
+                'alamatPihakPertama' => (string) ($row['Alamat Pihak Pertama'] ?? ''),
                 'namaPihakKedua' => (string) ($row['Nama Pihak Kedua'] ?? ''),
-                'jabatanPihakKedua' => '',
-                'alamatPihakKedua' => '',
+                'jabatanPihakKedua' => (string) ($row['Jabatan Pihak Kedua'] ?? ''),
+                'alamatPihakKedua' => (string) ($row['Alamat Pihak Kedua'] ?? ''),
                 'jenisLimbah' => (string) ($row['Jenis Limbah'] ?? ''),
                 'beratLimbahKg' => (string) ($row['Berat Limbah Kg'] ?? 0),
                 'catatan' => (string) ($row['Catatan'] ?? ''),
@@ -624,8 +630,16 @@ class SppgReportService
         return $item;
     }
 
-    protected function isNumericColumn(string $column): bool
+    protected function isNumericColumn(string $column, ?string $category = null): bool
     {
+        // Pada pengolahan produksi, field qty dapat berisi beberapa baris
+        // yang sejajar dengan bahan_baku dan satuan_bahan.
+        // Jangan dipaksa menjadi angka tunggal karena nilai seperti
+        // "1\n2\n3" akan rusak jika dinormalisasi sebagai numeric.
+        if ($category === 'pengolahan_produksi' && $column === 'qty') {
+            return false;
+        }
+
         return Str::contains($column, [
             'nomor',
             'porsi',
@@ -649,7 +663,15 @@ class SppgReportService
             return 0;
         }
 
-        $cleaned = preg_replace('/[^\d,.-]/', '', (string) $value);
+        $text = trim((string) $value);
+
+        // Aplikasi Android lama mengirim checklist kondisi bahan dengan tanda centang.
+        // Simpan sebagai 1 agar kolom Baik/Sedang/Rusak terbaca di sistem.
+        if (in_array(mb_strtolower($text), ['✓', '✔', 'true', 'ya', 'yes', 'v'], true)) {
+            return 1;
+        }
+
+        $cleaned = preg_replace('/[^\d,.-]/', '', $text);
         $cleaned = str_replace(',', '.', $cleaned);
 
         if ($cleaned === '' || !is_numeric($cleaned)) {

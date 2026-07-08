@@ -11,20 +11,12 @@ class Divisi extends Model
 
     protected $table = 'divisis';
 
-    // Kolom yang dapat diisi melalui mass assignment
-    // app/Models/Divisi.php
-// ...
-protected $fillable = [
-    'nama', // PASTIKAN HANYA 'nama'
-    'jam_masuk',
-    'jam_keluar',
-    //'toleransi_telat', // Jangan lupa tambahkan ini jika belum ada
-];
-// ...
+    protected $fillable = [
+        'nama',
+        'jam_masuk',
+        'jam_keluar',
+    ];
 
-    /**
-     * Relasi One-to-Many: Satu Divisi memiliki banyak Pegawai.
-     */
     public function pegawais()
     {
         return $this->hasMany(Pegawai::class);
