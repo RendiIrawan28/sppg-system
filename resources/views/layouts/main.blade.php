@@ -81,7 +81,7 @@
 
         <footer class="bg-white border-t border-gray-200 mt-auto">
             <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
-                &copy; {{ date('Y') }} SPPG Nogotirto. Dibuat dengan Laravel & Tailwind CSS.
+                &copy; {{ date('Y') }} SPPG Nogotirto.
             </div>
         </footer>
     </div>

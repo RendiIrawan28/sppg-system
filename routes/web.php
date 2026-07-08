@@ -32,6 +32,13 @@ Route::prefix('presensi')->name('presensi.')->group(function () {
 
     Route::post('/mode/presensi', [PegawaiController::class, 'setPresensiMode'])
         ->name('mode.presensi');
+    
     Route::post('/reset-hari-ini', [PresensiController::class, 'resetHariIni'])
-    ->name('reset.hari-ini');
+        ->name('reset.hari-ini');
+
+    Route::get('/manual', [PresensiController::class, 'manualCreate'])
+        ->name('manual.create');
+
+    Route::post('/manual', [PresensiController::class, 'manualStore'])
+        ->name('manual.store');
 });

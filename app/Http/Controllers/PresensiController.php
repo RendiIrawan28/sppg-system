@@ -27,7 +27,7 @@ class PresensiController extends Controller
     /**
      * Mencegah kartu yang sama terbaca dua kali berurutan karena masih menempel di reader.
      */
-    protected int $minimumSecondsBetweenInOut = 60;
+    protected int $minimumSecondsBetweenInOut = 14400;
 
     // ===================== MODE REGISTRASI =====================
     public function registerCard(Request $request)
@@ -312,12 +312,137 @@ class PresensiController extends Controller
     {
         $today = \Illuminate\Support\Carbon::today('Asia/Jakarta')->toDateString();
 
-        \App\Models\Presensi::whereDate('tanggal', $today)
-            ->orWhereNull('jam_keluar')
+        $jumlah = \App\Models\Presensi::where(function ($query) use ($today) {
+            $query->whereDate('tanggal', $today)
+                ->orWhereNull('jam_keluar');
+        })
             ->delete();
 
         return redirect()
             ->back()
-            ->with('success', 'Data presensi hari ini berhasil direset.');
+            ->with('success', "Berhasil reset {$jumlah} data presensi hari ini / presensi terbuka.");
+    }
+    public function manualCreate()
+    {
+        $pegawais = Pegawai::with('divisi')
+            ->orderBy('nama', 'asc')
+            ->get();
+
+        return view('presensi.manual-create', compact('pegawais'));
+    }
+
+    public function manualStore(Request $request)
+    {
+        $validated = $request->validate([
+            'pegawai_id' => ['required', 'exists:pegawais,id'],
+            'tanggal' => ['required', 'date'],
+            'jam_masuk' => ['required', 'date_format:H:i'],
+            'jam_keluar' => ['nullable', 'date_format:H:i'],
+            'catatan' => ['nullable', 'string', 'max:500'],
+        ], [
+            'pegawai_id.required' => 'Pegawai wajib dipilih.',
+            'tanggal.required' => 'Tanggal kerja wajib diisi.',
+            'jam_masuk.required' => 'Jam masuk wajib diisi.',
+            'jam_masuk.date_format' => 'Format jam masuk tidak valid.',
+            'jam_keluar.date_format' => 'Format jam keluar tidak valid.',
+        ]);
+
+        $timezone = 'Asia/Jakarta';
+
+        $pegawai = Pegawai::with('divisi')->findOrFail($validated['pegawai_id']);
+
+        $jamMasuk = Carbon::createFromFormat(
+            'Y-m-d H:i',
+            $validated['tanggal'] . ' ' . $validated['jam_masuk'],
+            $timezone
+        );
+
+        $jamKeluar = null;
+        $totalMenit = 0;
+        $status = 'open';
+        $checkoutType = null;
+
+        if (! empty($validated['jam_keluar'])) {
+            $jamKeluar = Carbon::createFromFormat(
+                'Y-m-d H:i',
+                $validated['tanggal'] . ' ' . $validated['jam_keluar'],
+                $timezone
+            );
+
+            // Jika jam keluar lebih kecil/sama dari jam masuk,
+            // berarti shift lewat tengah malam.
+            if ($jamKeluar->lessThanOrEqualTo($jamMasuk)) {
+                $jamKeluar->addDay();
+            }
+
+            $totalMenit = max(1, (int) $jamMasuk->diffInMinutes($jamKeluar));
+
+            if ($totalMenit > 16 * 60) {
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->with('error', 'Durasi kerja tidak boleh lebih dari 16 jam.');
+            }
+
+            $status = 'closed';
+            $checkoutType = 'manual';
+        }
+
+        // Jika membuat presensi terbuka, pastikan pegawai belum punya shift aktif.
+        if (! $jamKeluar) {
+            $hasOpenShift = Presensi::where('pegawai_id', $pegawai->id)
+                ->whereNull('jam_keluar')
+                ->exists();
+
+            if ($hasOpenShift) {
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->with('error', 'Pegawai ini masih memiliki presensi aktif/belum check-out.');
+            }
+        }
+
+        // Cek bentrok jam dengan presensi lain.
+        if ($jamKeluar) {
+            $nearbyPresensis = Presensi::where('pegawai_id', $pegawai->id)
+                ->whereBetween('tanggal', [
+                    $jamMasuk->copy()->subDay()->toDateString(),
+                    $jamMasuk->copy()->addDay()->toDateString(),
+                ])
+                ->get();
+
+            foreach ($nearbyPresensis as $existing) {
+                $existingStart = Carbon::parse($existing->jam_masuk, $timezone);
+                $existingEnd = $existing->jam_keluar
+                    ? Carbon::parse($existing->jam_keluar, $timezone)
+                    : $existingStart->copy()->addHours(16);
+
+                $isOverlap = $jamMasuk->lt($existingEnd) && $jamKeluar->gt($existingStart);
+
+                if ($isOverlap) {
+                    return redirect()
+                        ->back()
+                        ->withInput()
+                        ->with('error', 'Jam presensi manual bentrok dengan presensi pegawai yang sudah ada.');
+                }
+            }
+        }
+
+        Presensi::create([
+            'pegawai_id' => $pegawai->id,
+            'tanggal' => $jamMasuk->toDateString(),
+            'jam_masuk' => $jamMasuk,
+            'jam_keluar' => $jamKeluar,
+            'total_jam' => $totalMenit,
+            'telat' => 0,
+            'lembur' => 0,
+            'status' => $status,
+            'checkout_type' => $checkoutType,
+            'catatan' => trim('Input manual. ' . ($validated['catatan'] ?? '')),
+        ]);
+
+        return redirect()
+            ->route('presensi.riwayat.index')
+            ->with('success', 'Presensi manual berhasil ditambahkan untuk ' . $pegawai->nama . '.');
     }
 }

@@ -1,100 +1,232 @@
 @extends('layouts.main')
 
 @section('content')
+<div class="space-y-6">
 
-@if (session('success'))
-    <div class="mb-4 p-4 rounded-lg bg-green-100 text-green-800 border border-green-300">
-        {{ session('success') }}
+    {{-- Header --}}
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800">Riwayat Presensi</h1>
+            <p class="text-sm text-gray-500 mt-1">
+                Data check-in, check-out, dan durasi kerja pegawai SPPG.
+            </p>
+        </div>
     </div>
-@endif
-    <h1 class="text-3xl font-bold text-gray-800 mb-6">Riwayat Presensi</h1>
 
-    {{-- Filter Section (tetap sama) --}}
-    <div class="bg-white p-6 rounded-xl shadow-lg mb-6">
-        <form method="GET" action="{{ route('presensi.riwayat.index') }}" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-            <div>
-                <label for="tanggal_mulai" class="block text-sm font-medium text-gray-700">Tgl Mulai</label>
-                <input type="date" name="tanggal_mulai" id="tanggal_mulai" value="{{ request('tanggal_mulai') }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border">
-            </div>
-            <div>
-                <label for="tanggal_akhir" class="block text-sm font-medium text-gray-700">Tgl Akhir</label>
-                <input type="date" name="tanggal_akhir" id="tanggal_akhir" value="{{ request('tanggal_akhir') }}" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border">
-            </div>
-            <div>
-                <label for="pegawai_id" class="block text-sm font-medium text-gray-700">Pilih Pegawai</label>
-                <select name="pegawai_id" id="pegawai_id" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border">
-                    <option value="">Semua Pegawai</option>
-                    @foreach ($pegawais as $pegawai)
-                        <option value="{{ $pegawai->id }}" @selected(request('pegawai_id') == $pegawai->id)>{{ $pegawai->nama }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="flex space-x-2">
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">Filter</button>
-                <a href="{{ route('presensi.riwayat.index') }}" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg text-center transition duration-150">Reset</a>
-            </div>
-            <div class="md:col-span-1">
-                <a href="{{ route('presensi.riwayat.export', request()->query()) }}" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-150 flex items-center justify-center">
-                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Export CSV
+    {{-- Alert --}}
+    @if (session('success'))
+        <div class="p-4 rounded-xl bg-green-50 text-green-700 border border-green-200">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="p-4 rounded-xl bg-red-50 text-red-700 border border-red-200">
+            {{ session('error') }}
+        </div>
+    @endif
+
+    {{-- Filter & Action --}}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div class="flex flex-col xl:flex-row xl:items-end gap-4">
+
+            {{-- Filter Form --}}
+            <form method="GET"
+                  action="{{ route('presensi.riwayat.index') }}"
+                  class="flex-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 items-end">
+
+                <div>
+                    <label for="tanggal_mulai" class="block text-sm font-medium text-gray-700 mb-1">
+                        Tgl Mulai
+                    </label>
+                    <input type="date"
+                           name="tanggal_mulai"
+                           id="tanggal_mulai"
+                           value="{{ request('tanggal_mulai') }}"
+                           class="w-full rounded-xl border-gray-300 shadow-sm p-2.5 border focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label for="tanggal_akhir" class="block text-sm font-medium text-gray-700 mb-1">
+                        Tgl Akhir
+                    </label>
+                    <input type="date"
+                           name="tanggal_akhir"
+                           id="tanggal_akhir"
+                           value="{{ request('tanggal_akhir') }}"
+                           class="w-full rounded-xl border-gray-300 shadow-sm p-2.5 border focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label for="pegawai_id" class="block text-sm font-medium text-gray-700 mb-1">
+                        Pilih Pegawai
+                    </label>
+                    <select name="pegawai_id"
+                            id="pegawai_id"
+                            class="w-full rounded-xl border-gray-300 shadow-sm p-2.5 border focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">Semua Pegawai</option>
+                        @foreach ($pegawais as $pegawai)
+                            <option value="{{ $pegawai->id }}" @selected(request('pegawai_id') == $pegawai->id)>
+                                {{ $pegawai->nama }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <button type="submit"
+                        class="h-[46px] bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 rounded-xl transition">
+                    Filter
+                </button>
+
+                <a href="{{ route('presensi.riwayat.index') }}"
+                   class="h-[46px] bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold px-5 rounded-xl transition flex items-center justify-center">
+                    Reset Filter
                 </a>
-            </div>
-        </form>
+            </form>
+
+            {{-- Export --}}
+            <a href="{{ route('presensi.riwayat.export', request()->query()) }}"
+               class="h-[46px] bg-green-600 hover:bg-green-700 text-white font-semibold px-5 rounded-xl shadow-sm transition flex items-center justify-center whitespace-nowrap">
+                Export CSV
+            </a>
+
+            {{-- Reset Data --}}
+            <form action="{{ route('presensi.reset.hari-ini') }}"
+                  method="POST"
+                  onsubmit="return confirm('Yakin reset data presensi hari ini? Data yang dihapus tidak bisa dikembalikan.');">
+                @csrf
+
+                <button type="submit"
+                        class="h-[46px] bg-red-600 hover:bg-red-700 text-white font-semibold px-5 rounded-xl shadow-sm transition whitespace-nowrap">
+                    Reset Data Hari Ini
+                </button>
+            </form>
+        </div>
     </div>
 
-    {{-- Table Section --}}
-    <div class="bg-white p-6 rounded-xl shadow-lg">
+    {{-- Table --}}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Pegawai</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Divisi</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jam Masuk</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jam Keluar</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Jam</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Tanggal Kerja
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Nama Pegawai
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Divisi
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Jam Masuk
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Jam Keluar
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Durasi
+                        </th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Status
+                        </th>
                     </tr>
                 </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
+
+                <tbody class="bg-white divide-y divide-gray-100">
                     @forelse ($riwayats as $riwayat)
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ Carbon\Carbon::parse($riwayat->jam_masuk)->format('d F Y') }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $riwayat->pegawai->nama ?? 'Pegawai Dihapus' }}</td>
-                            {{-- FIX KRITIS: Ganti nama_divisi menjadi nama --}}
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $riwayat->pegawai->divisi->nama ?? 'N/A' }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ Carbon\Carbon::parse($riwayat->jam_masuk)->format('H:i:s') }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                @if ($riwayat->jam_keluar)
-                                    {{ Carbon\Carbon::parse($riwayat->jam_keluar)->format('H:i:s') }}
+                        @php
+                            $totalMenit = (int) ($riwayat->total_jam ?? 0);
+                            $jam = intdiv($totalMenit, 60);
+                            $menit = $totalMenit % 60;
+
+                            if ($riwayat->jam_keluar) {
+                                if ($jam > 0 && $menit > 0) {
+                                    $durasi = $jam . ' jam ' . $menit . ' menit';
+                                } elseif ($jam > 0) {
+                                    $durasi = $jam . ' jam';
+                                } else {
+                                    $durasi = $menit . ' menit';
+                                }
+                            } else {
+                                $durasi = 'Masih bekerja';
+                            }
+
+                            $status = $riwayat->status ?? null;
+                        @endphp
+
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                @if ($riwayat->tanggal)
+                                    {{ \Carbon\Carbon::parse($riwayat->tanggal)->format('d M Y') }}
+                                @elseif ($riwayat->jam_masuk)
+                                    {{ \Carbon\Carbon::parse($riwayat->jam_masuk)->format('d M Y') }}
                                 @else
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Aktif</span>
+                                    -
                                 @endif
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ $riwayat->total_jam ? $riwayat->total_jam . ' jam' : '-' }}
+
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                {{ $riwayat->pegawai->nama ?? 'Pegawai Dihapus' }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                @if ($riwayat->status_telat == 'Telat')
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Telat</span>
+
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                {{ $riwayat->pegawai->divisi->nama ?? 'N/A' }}
+                            </td>
+
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                @if ($riwayat->jam_masuk)
+                                    {{ \Carbon\Carbon::parse($riwayat->jam_masuk)->format('H:i:s') }}
                                 @else
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Tepat Waktu</span>
+                                    -
+                                @endif
+                            </td>
+
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                @if ($riwayat->jam_keluar)
+                                    {{ \Carbon\Carbon::parse($riwayat->jam_keluar)->format('H:i:s') }}
+                                @else
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+                                        Belum Check-Out
+                                    </span>
+                                @endif
+                            </td>
+
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                {{ $durasi }}
+                            </td>
+
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                @if (! $riwayat->jam_keluar || $status === 'open')
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+                                        Sedang Bekerja
+                                    </span>
+                                @elseif ($status === 'auto_checkout')
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                                        Auto Check-Out
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                                        Selesai
+                                    </span>
                                 @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">Tidak ada data riwayat presensi yang ditemukan.</td>
+                            <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">
+                                Tidak ada data riwayat presensi yang ditemukan.
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        
-        <div class="mt-4">
-            {{-- Pastikan pagination links --}}
+
+        <div class="px-6 py-4 border-t border-gray-100">
             {{ $riwayats->appends(request()->query())->links() }}
         </div>
     </div>
+</div>
 @endsection

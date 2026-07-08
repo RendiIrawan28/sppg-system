@@ -172,7 +172,7 @@
             const editDivisiSelect = document.getElementById('edit_divisi_id');
 
             // Menetapkan URL aksi form ke route pegawai.update
-            form.action = `{{ url('pegawai') }}/${pegawai.id}`; 
+            form.action = `{{ route('presensi.pegawai.update', ['pegawai' => '__ID__']) }}`.replace('__ID__', pegawai.id); 
             
             // Mengisi data ke dalam input field
             document.getElementById('edit_nama').value = pegawai.nama;
