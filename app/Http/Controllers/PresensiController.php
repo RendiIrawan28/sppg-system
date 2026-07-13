@@ -445,4 +445,62 @@ class PresensiController extends Controller
             ->route('presensi.riwayat.index')
             ->with('success', 'Presensi manual berhasil ditambahkan untuk ' . $pegawai->nama . '.');
     }
+    public function manualCheckout(Request $request, Presensi $presensi)
+    {
+        $validated = $request->validate([
+            'jam_keluar' => ['nullable', 'date'],
+            'catatan' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $timezone = 'Asia/Jakarta';
+
+        if ($presensi->jam_keluar) {
+            return redirect()
+                ->back()
+                ->with('error', 'Presensi ini sudah memiliki jam keluar.');
+        }
+
+        if (! $presensi->jam_masuk) {
+            return redirect()
+                ->back()
+                ->with('error', 'Presensi tidak valid karena jam masuk kosong.');
+        }
+
+        $jamMasuk = \Illuminate\Support\Carbon::parse($presensi->jam_masuk, $timezone);
+
+        $jamKeluar = filled($validated['jam_keluar'] ?? null)
+            ? \Illuminate\Support\Carbon::parse($validated['jam_keluar'], $timezone)
+            : \Illuminate\Support\Carbon::now($timezone);
+
+        if ($jamKeluar->lessThanOrEqualTo($jamMasuk)) {
+            return redirect()
+                ->back()
+                ->with('error', 'Jam keluar manual harus lebih besar dari jam masuk.');
+        }
+
+        $totalMenit = max(1, (int) $jamMasuk->diffInMinutes($jamKeluar));
+
+        if ($totalMenit > 16 * 60) {
+            return redirect()
+                ->back()
+                ->with('error', 'Durasi kerja tidak boleh lebih dari 16 jam. Jika pegawai lupa checkout lebih dari 16 jam, sistem harus dianggap auto checkout.');
+        }
+
+        $catatanLama = $presensi->catatan ? $presensi->catatan . "\n" : '';
+        $catatanBaru = $validated['catatan'] ?? 'Checkout manual oleh admin karena kartu/hardware bermasalah.';
+
+        $presensi->update([
+            'jam_keluar' => $jamKeluar,
+            'total_jam' => $totalMenit,
+            'telat' => 0,
+            'lembur' => 0,
+            'status' => 'closed',
+            'checkout_type' => 'manual_admin',
+            'catatan' => $catatanLama . 'Checkout manual: ' . $catatanBaru,
+        ]);
+
+        return redirect()
+            ->back()
+            ->with('success', 'Checkout manual berhasil disimpan.');
+    }
 }

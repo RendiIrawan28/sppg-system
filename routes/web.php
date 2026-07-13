@@ -30,6 +30,9 @@ Route::prefix('presensi')->name('presensi.')->group(function () {
 
     Route::post('/manual', [PresensiController::class, 'manualStore'])
         ->name('manual.store');
+        
+    Route::post('/riwayat/{presensi}/checkout-manual', [PresensiController::class, 'manualCheckout'])
+        ->name('manual.checkout');
 
     Route::get('/riwayat', [RiwayatController::class, 'index'])
         ->name('riwayat.index');
