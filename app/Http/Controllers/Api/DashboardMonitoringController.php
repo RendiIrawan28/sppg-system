@@ -59,10 +59,7 @@ class DashboardMonitoringController extends Controller
             return [];
         }
 
-        return array_map(
-            fn (array $row) => $this->reports->toMobileItem($category, $row),
-            $this->reports->list($category, $tanggal)
-        );
+        return $this->reports->list($category, $tanggal);
     }
 
     private function gudangBahanMasuk(string $tanggal)
@@ -70,7 +67,7 @@ class DashboardMonitoringController extends Controller
         return GudangBahanMasuk::whereDate('tanggal', $tanggal)
             ->orderByDesc('id')
             ->get()
-            ->map(fn ($item) => [
+            ->map(fn($item) => [
                 'ID' => $item->id,
                 'Tanggal' => optional($item->tanggal)->format('Y-m-d'),
                 'Nama Petugas' => $item->nama_petugas,
@@ -91,7 +88,7 @@ class DashboardMonitoringController extends Controller
         return GudangBahanKeluar::whereDate('tanggal', $tanggal)
             ->orderByDesc('id')
             ->get()
-            ->map(fn ($item) => [
+            ->map(fn($item) => [
                 'ID' => $item->id,
                 'Tanggal' => optional($item->tanggal)->format('Y-m-d'),
                 'Nama Petugas' => $item->nama_petugas,
