@@ -316,6 +316,12 @@ class SppgReportService
 
             $value = $payload[$canonical] ?? null;
 
+            // Penting:
+            // Jika update tidak membawa foto baru, jangan hapus foto lama.
+            if ($canonical === 'Foto URL' && blank($value)) {
+                continue;
+            }
+
             if ($this->isNumericColumn($column, $category)) {
                 $update[$column] = $this->toNumber($value);
             } else {
@@ -351,7 +357,7 @@ class SppgReportService
             ->whereDate('tanggal', $tanggal)
             ->orderBy('id')
             ->get()
-            ->map(fn ($row) => $this->formatDbRow($category, $row))
+            ->map(fn($row) => $this->formatDbRow($category, $row))
             ->values()
             ->all();
     }

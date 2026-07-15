@@ -8,6 +8,10 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Models\MobileUser;
 use Illuminate\Support\Facades\Hash;
+use App\Models\GudangBahanMasuk;
+use App\Models\GudangBahanKeluar;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class MobileExecController extends Controller
 {
@@ -37,6 +41,59 @@ class MobileExecController extends Controller
 
         if ($action === 'getpemorsianexport') {
             return $this->getPemorsianExport($request);
+        }
+        if ($action === 'getpemorsianexport') {
+            return $this->getPemorsianExport($request);
+        }
+
+        // ===================== GUDANG =====================
+        if ($action === 'getgudangdashboard') {
+            return $this->getGudangDashboard($request);
+        }
+
+        if ($action === 'addgudangbahanmasuk') {
+            return $this->addGudangBahanMasuk($request);
+        }
+
+        if ($action === 'updategudangbahanmasuk') {
+            return $this->updateGudangBahanMasuk($request);
+        }
+
+        if ($action === 'deletegudangbahanmasuk') {
+            return $this->deleteGudangBahanMasuk($request);
+        }
+
+        if ($action === 'getgudangbahanmasuk') {
+            return $this->getGudangBahanMasuk($request);
+        }
+
+        if ($action === 'addgudangbahankeluar') {
+            return $this->addGudangBahanKeluar($request);
+        }
+
+        if ($action === 'updategudangbahankeluar') {
+            return $this->updateGudangBahanKeluar($request);
+        }
+
+        if ($action === 'deletegudangbahankeluar') {
+            return $this->deleteGudangBahanKeluar($request);
+        }
+
+        if ($action === 'getgudangbahankeluar') {
+            return $this->getGudangBahanKeluar($request);
+        }
+
+        if ($action === 'getgudangstok') {
+            return $this->getGudangStok($request);
+        }
+
+        if ($action === 'getgudangexport') {
+            return $this->getGudangExport($request);
+        }
+        // =================== END GUDANG ===================
+
+        if ($category = $this->categoryFromSaveAction($action)) {
+            return $this->saveByCategory($request, $category, true);
         }
 
         if ($category = $this->categoryFromSaveAction($action)) {
@@ -163,9 +220,37 @@ class MobileExecController extends Controller
 
         $tanggal = $this->reports->dateOrToday($request->input('tanggal'));
         $payload = $this->reports->payloadFromRequest($request);
+
+        // Jika aplikasi Android update data tanpa memilih foto baru,
+        // jangan biarkan foto lama tertimpa nilai kosong.
+        $payload = $this->removeEmptyPhotoFields($payload);
+
         $row = $this->reports->update($category, $id, $tanggal, $payload);
 
         return $this->mobileSavedResponse($category, $row, 'Data berhasil diperbarui.');
+    }
+    protected function removeEmptyPhotoFields(array $payload): array
+    {
+        $photoKeys = [
+            'Foto URL',
+            'foto_url',
+            'fotoUrl',
+            'fotoURL',
+            'foto',
+            'Foto',
+            'photo_url',
+            'photoUrl',
+            'image_url',
+            'imageUrl',
+        ];
+
+        foreach ($photoKeys as $key) {
+            if (array_key_exists($key, $payload) && blank($payload[$key])) {
+                unset($payload[$key]);
+            }
+        }
+
+        return $payload;
     }
 
     protected function deleteByCategory(Request $request, string $category)
@@ -534,6 +619,345 @@ class MobileExecController extends Controller
             'deletepencucianlimbah' => 'pencucian_limbah',
             'deletekebersihanlimbah' => 'kebersihan_limbah',
         ]);
+    }
+
+    protected function getGudangDashboard(Request $request)
+    {
+        $tanggal = $request->input('tanggal') ?: now('Asia/Jakarta')->toDateString();
+
+        $totalMasuk = GudangBahanMasuk::whereDate('tanggal', $tanggal)->sum('jumlah');
+        $totalKeluar = GudangBahanKeluar::whereDate('tanggal', $tanggal)->sum('jumlah');
+
+        $jumlahDataMasuk = GudangBahanMasuk::whereDate('tanggal', $tanggal)->count();
+        $jumlahDataKeluar = GudangBahanKeluar::whereDate('tanggal', $tanggal)->count();
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Dashboard gudang berhasil dimuat.',
+            'data' => [
+                'tanggal' => $tanggal,
+                'total_masuk' => (float) $totalMasuk,
+                'total_keluar' => (float) $totalKeluar,
+                'jumlah_data_masuk' => $jumlahDataMasuk,
+                'jumlah_data_keluar' => $jumlahDataKeluar,
+                'stok' => $this->buildGudangStok(),
+            ],
+        ]);
+    }
+
+    protected function addGudangBahanMasuk(Request $request)
+    {
+        $data = $request->validate([
+            'tanggal' => ['required', 'date'],
+            'nama_petugas' => ['nullable', 'string', 'max:255'],
+            'nama_supplier' => ['nullable', 'string', 'max:255'],
+            'nama_bahan' => ['required', 'string', 'max:255'],
+            'jumlah' => ['required', 'numeric', 'min:0'],
+            'satuan' => ['nullable', 'string', 'max:50'],
+            'kondisi_bahan' => ['nullable', 'string', 'max:255'],
+            'tanggal_kedaluwarsa' => ['nullable', 'date'],
+            'catatan' => ['nullable', 'string'],
+            'foto_url' => ['nullable', 'string'],
+        ]);
+
+        $record = GudangBahanMasuk::create($data);
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data bahan masuk berhasil disimpan.',
+            'data' => $record,
+        ], 201);
+    }
+
+    protected function updateGudangBahanMasuk(Request $request)
+    {
+        $id = $request->input('id');
+
+        if (! $id) {
+            return $this->fail('ID bahan masuk wajib diisi.');
+        }
+
+        $record = GudangBahanMasuk::find($id);
+
+        if (! $record) {
+            return $this->fail('Data bahan masuk tidak ditemukan.', 404);
+        }
+
+        $data = $request->validate([
+            'tanggal' => ['required', 'date'],
+            'nama_petugas' => ['nullable', 'string', 'max:255'],
+            'nama_supplier' => ['nullable', 'string', 'max:255'],
+            'nama_bahan' => ['required', 'string', 'max:255'],
+            'jumlah' => ['required', 'numeric', 'min:0'],
+            'satuan' => ['nullable', 'string', 'max:50'],
+            'kondisi_bahan' => ['nullable', 'string', 'max:255'],
+            'tanggal_kedaluwarsa' => ['nullable', 'date'],
+            'catatan' => ['nullable', 'string'],
+            'foto_url' => ['nullable', 'string'],
+        ]);
+
+        $record->update($data);
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data bahan masuk berhasil diperbarui.',
+            'data' => $record,
+        ]);
+    }
+
+    protected function deleteGudangBahanMasuk(Request $request)
+    {
+        $id = $request->input('id');
+
+        if (! $id) {
+            return $this->fail('ID bahan masuk wajib diisi.');
+        }
+
+        $record = GudangBahanMasuk::find($id);
+
+        if (! $record) {
+            return $this->fail('Data bahan masuk tidak ditemukan.', 404);
+        }
+
+        $record->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data bahan masuk berhasil dihapus.',
+            'data' => null,
+        ]);
+    }
+
+    protected function getGudangBahanMasuk(Request $request)
+    {
+        $tanggal = $request->input('tanggal');
+
+        $query = GudangBahanMasuk::query();
+
+        if ($tanggal) {
+            $query->whereDate('tanggal', $tanggal);
+        }
+
+        $data = $query
+            ->orderByDesc('tanggal')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data bahan masuk berhasil dimuat.',
+            'data' => $data,
+        ]);
+    }
+
+    protected function addGudangBahanKeluar(Request $request)
+    {
+        $data = $request->validate([
+            'tanggal' => ['required', 'date'],
+            'nama_petugas' => ['nullable', 'string', 'max:255'],
+            'nama_penerima' => ['nullable', 'string', 'max:255'],
+            'divisi_penerima' => ['nullable', 'string', 'max:255'],
+            'nama_bahan' => ['required', 'string', 'max:255'],
+            'jumlah' => ['required', 'numeric', 'min:0'],
+            'satuan' => ['nullable', 'string', 'max:50'],
+            'catatan' => ['nullable', 'string'],
+            'foto_url' => ['nullable', 'string'],
+        ]);
+
+        $sisaStok = $this->getSisaStokBahan($data['nama_bahan']);
+
+        if ((float) $data['jumlah'] > $sisaStok) {
+            return $this->fail('Stok bahan tidak mencukupi. Sisa stok saat ini: ' . $sisaStok, 422);
+        }
+
+        $record = GudangBahanKeluar::create($data);
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data bahan keluar berhasil disimpan.',
+            'data' => $record,
+        ], 201);
+    }
+
+    protected function updateGudangBahanKeluar(Request $request)
+    {
+        $id = $request->input('id');
+
+        if (! $id) {
+            return $this->fail('ID bahan keluar wajib diisi.');
+        }
+
+        $record = GudangBahanKeluar::find($id);
+
+        if (! $record) {
+            return $this->fail('Data bahan keluar tidak ditemukan.', 404);
+        }
+
+        $data = $request->validate([
+            'tanggal' => ['required', 'date'],
+            'nama_petugas' => ['nullable', 'string', 'max:255'],
+            'nama_penerima' => ['nullable', 'string', 'max:255'],
+            'divisi_penerima' => ['nullable', 'string', 'max:255'],
+            'nama_bahan' => ['required', 'string', 'max:255'],
+            'jumlah' => ['required', 'numeric', 'min:0'],
+            'satuan' => ['nullable', 'string', 'max:50'],
+            'catatan' => ['nullable', 'string'],
+            'foto_url' => ['nullable', 'string'],
+        ]);
+
+        $stokTersedia = $this->getSisaStokBahan($data['nama_bahan']);
+
+        if ($this->normalizeGudangNamaBahan($record->nama_bahan) === $this->normalizeGudangNamaBahan($data['nama_bahan'])) {
+            $stokTersedia += (float) $record->jumlah;
+        }
+
+        if ((float) $data['jumlah'] > $stokTersedia) {
+            return $this->fail('Stok bahan tidak mencukupi. Sisa stok saat ini: ' . $stokTersedia, 422);
+        }
+
+        $record->update($data);
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data bahan keluar berhasil diperbarui.',
+            'data' => $record,
+        ]);
+    }
+
+    protected function deleteGudangBahanKeluar(Request $request)
+    {
+        $id = $request->input('id');
+
+        if (! $id) {
+            return $this->fail('ID bahan keluar wajib diisi.');
+        }
+
+        $record = GudangBahanKeluar::find($id);
+
+        if (! $record) {
+            return $this->fail('Data bahan keluar tidak ditemukan.', 404);
+        }
+
+        $record->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data bahan keluar berhasil dihapus.',
+            'data' => null,
+        ]);
+    }
+
+    protected function getGudangBahanKeluar(Request $request)
+    {
+        $tanggal = $request->input('tanggal');
+
+        $query = GudangBahanKeluar::query();
+
+        if ($tanggal) {
+            $query->whereDate('tanggal', $tanggal);
+        }
+
+        $data = $query
+            ->orderByDesc('tanggal')
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data bahan keluar berhasil dimuat.',
+            'data' => $data,
+        ]);
+    }
+
+    protected function getGudangStok(Request $request)
+    {
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data stok gudang berhasil dimuat.',
+            'data' => $this->buildGudangStok(),
+        ]);
+    }
+
+    protected function getGudangExport(Request $request)
+    {
+        $tanggal = $request->input('tanggal') ?: now('Asia/Jakarta')->toDateString();
+
+        $bahanMasuk = GudangBahanMasuk::whereDate('tanggal', $tanggal)
+            ->orderBy('nama_bahan')
+            ->get();
+
+        $bahanKeluar = GudangBahanKeluar::whereDate('tanggal', $tanggal)
+            ->orderBy('nama_bahan')
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'success' => true,
+            'message' => 'Data export gudang berhasil dimuat.',
+            'data' => [
+                'tanggal' => $tanggal,
+                'bahan_masuk' => $bahanMasuk,
+                'bahan_keluar' => $bahanKeluar,
+                'stok' => $this->buildGudangStok(),
+            ],
+        ]);
+    }
+
+    protected function getSisaStokBahan(string $namaBahan): float
+    {
+        $namaBahan = $this->normalizeGudangNamaBahan($namaBahan);
+
+        $totalMasuk = GudangBahanMasuk::whereRaw('LOWER(TRIM(nama_bahan)) = ?', [$namaBahan])
+            ->sum('jumlah');
+
+        $totalKeluar = GudangBahanKeluar::whereRaw('LOWER(TRIM(nama_bahan)) = ?', [$namaBahan])
+            ->sum('jumlah');
+
+        return (float) $totalMasuk - (float) $totalKeluar;
+    }
+
+    protected function buildGudangStok()
+    {
+        $bahanList = GudangBahanMasuk::select('nama_bahan', 'satuan')
+            ->groupBy('nama_bahan', 'satuan')
+            ->orderBy('nama_bahan')
+            ->get();
+
+        return $bahanList->map(function ($item) {
+            $namaBahanNormal = $this->normalizeGudangNamaBahan($item->nama_bahan);
+
+            $totalMasuk = GudangBahanMasuk::whereRaw('LOWER(TRIM(nama_bahan)) = ?', [$namaBahanNormal])
+                ->sum('jumlah');
+
+            $totalKeluar = GudangBahanKeluar::whereRaw('LOWER(TRIM(nama_bahan)) = ?', [$namaBahanNormal])
+                ->sum('jumlah');
+
+            $stok = (float) $totalMasuk - (float) $totalKeluar;
+
+            return [
+                'nama_bahan' => $item->nama_bahan,
+                'satuan' => $item->satuan,
+                'total_masuk' => (float) $totalMasuk,
+                'total_keluar' => (float) $totalKeluar,
+                'stok' => $stok,
+                'status' => $stok <= 0 ? 'Habis' : ($stok <= 5 ? 'Menipis' : 'Aman'),
+            ];
+        })->values();
+    }
+
+    protected function normalizeGudangNamaBahan(?string $namaBahan): string
+    {
+        return strtolower(trim((string) $namaBahan));
     }
 
     protected function lookupAction(string $action, array $map): ?string

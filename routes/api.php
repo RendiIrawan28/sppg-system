@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\MobileExecController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ModeController;
 use App\Http\Controllers\PresensiController;
+use App\Http\Controllers\Api\DashboardMonitoringController;
 
 Route::get('/dashboard', [DashboardReportController::class, 'dashboard']);
 
@@ -21,3 +22,4 @@ Route::post('/mode', [ModeController::class, 'setMode']);
 
 Route::post('/registerCard', [PresensiController::class, 'registerCard']);
 Route::post('/presensi', [PresensiController::class, 'store']);
+Route::get('/dashboard', [DashboardMonitoringController::class, 'index']);
